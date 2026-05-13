@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520" role="img" aria-label="Crop disease scan illustration">
+  <defs>
+    <linearGradient id="leaf" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#84cc16"/>
+      <stop offset="1" stop-color="#15803d"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#dcfce7"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="520" rx="44" fill="url(#bg)"/>
+  <path d="M95 407c77-88 179-120 306-97 60 11 109 38 147 81 28 32 65 45 112 40 18-2 34 0 48 6v57H70c0-34 8-63 25-87Z" fill="#bbf7d0" opacity=".45"/>
+  <g transform="translate(120 70)">
+    <path d="M67 321C17 211 21 121 78 52c82-97 232-40 324-50-18 105 2 236-93 314-72 59-158 61-242 5Z" fill="url(#leaf)"/>
+    <path d="M61 322C165 240 251 156 402 2" fill="none" stroke="#ecfccb" stroke-width="12" stroke-linecap="round" opacity=".72"/>
+    <path d="M136 244c-18-47-15-89 7-127m67 73c-8-53 5-99 39-137m34 96c32 12 62 12 91 1" fill="none" stroke="#ecfccb" stroke-width="8" stroke-linecap="round" opacity=".55"/>
+    <circle cx="246" cy="183" r="31" fill="#854d0e" opacity=".82"/>
+    <circle cx="308" cy="230" r="21" fill="#713f12" opacity=".76"/>
+    <circle cx="185" cy="268" r="18" fill="#a16207" opacity=".74"/>
+    <circle cx="283" cy="125" r="15" fill="#713f12" opacity=".72"/>
+  </g>
+  <g transform="translate(390 190)">
+    <circle cx="92" cy="92" r="84" fill="none" stroke="#0f172a" stroke-width="22" opacity=".82"/>
+    <circle cx="92" cy="92" r="58" fill="#fff" opacity=".18"/>
+    <path d="m154 154 98 98" stroke="#0f172a" stroke-width="28" stroke-linecap="round"/>
+    <path d="m154 154 98 98" stroke="#94a3b8" stroke-width="10" stroke-linecap="round" opacity=".8"/>
+  </g>
+</svg>

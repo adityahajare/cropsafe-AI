@@ -1,0 +1,87 @@
+.pdf-report {
+  font-family: 'Segoe UI', 'Roboto', sans-serif;
+  background: white;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.pdf-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #2d5a2d;
+  margin-bottom: 20px;
+}
+
+.pdf-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-icon { font-size: 2rem; }
+.logo-text { font-size: 1.3rem; font-weight: bold; color: #1a472a; }
+.govt-badge { background: #ffd700; color: #1a472a; padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; margin-top: 5px; }
+
+.pdf-header-right { text-align: right; }
+.report-id, .report-date { font-size: 0.75rem; color: #666; }
+
+.pdf-title { text-align: center; margin-bottom: 25px; }
+.pdf-title h1 { color: #1a472a; font-size: 1.5rem; margin-bottom: 5px; }
+.pdf-title p { color: #666; font-size: 0.85rem; }
+
+.pdf-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+
+.pdf-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.card-header {
+  background: #f8f9fa;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-header h3 { font-size: 0.9rem; margin: 0; color: #1a472a; }
+.card-icon { font-size: 1.1rem; }
+
+.farmer-details { padding: 12px; }
+.detail-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.75rem; }
+.detail-label { color: #666; font-weight: 500; }
+.detail-value { font-weight: 600; color: #333; }
+.crop-badge { background: #e8f5e9; padding: 2px 8px; border-radius: 12px; }
+
+.metrics-three { display: flex; gap: 15px; margin-bottom: 20px; }
+.metric { flex: 1; text-align: center; padding: 15px; border-radius: 12px; color: white; }
+.metric.green { background: #28a745; }
+.metric.yellow { background: #ffc107; color: #333; }
+.metric-value { font-size: 1.5rem; font-weight: bold; }
+.metric-label { font-size: 0.7rem; opacity: 0.9; }
+
+.health-bar-container { padding: 0 12px 12px; }
+.health-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin-bottom: 6px; }
+.health-labels { display: flex; justify-content: space-between; font-size: 0.65rem; }
+
+.pdf-footer {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 15px;
+  border-top: 1px solid #e0e0e0;
+  font-size: 0.65rem;
+  color: #999;
+  margin-top: 20px;
+}
+
+@media print {
+  .pdf-report { padding: 0; margin: 0; }
+  .pdf-card { break-inside: avoid; }
+  .pdf-grid { gap: 10px; }
+}

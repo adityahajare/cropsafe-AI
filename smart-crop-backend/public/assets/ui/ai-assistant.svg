@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520" role="img" aria-label="AI farming assistant illustration">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#ecfdf5"/>
+      <stop offset="1" stop-color="#dcfce7"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" x2="1">
+      <stop offset="0" stop-color="#022c22"/>
+      <stop offset="1" stop-color="#047857"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="520" rx="44" fill="url(#bg)"/>
+  <circle cx="158" cy="170" r="90" fill="#bbf7d0" opacity=".7"/>
+  <path d="M95 358c34-72 91-104 172-97 46 5 84 23 116 54 25 24 64 30 95 12 48-28 104-18 139 22 25 28 34 63 28 105H75c0-35 7-67 20-96Z" fill="#86efac" opacity=".45"/>
+  <path d="M114 364c24-57 79-91 139-88 57 3 109 44 128 101" fill="none" stroke="#16a34a" stroke-width="12" stroke-linecap="round" opacity=".22"/>
+  <g transform="translate(202 104)">
+    <rect x="52" y="88" width="220" height="236" rx="58" fill="#ffffff" stroke="#bbf7d0" stroke-width="10"/>
+    <rect x="86" y="0" width="152" height="128" rx="54" fill="#ffffff" stroke="#bbf7d0" stroke-width="10"/>
+    <rect x="111" y="35" width="102" height="58" rx="22" fill="url(#screen)"/>
+    <circle cx="139" cy="64" r="8" fill="#86efac"/>
+    <circle cx="184" cy="64" r="8" fill="#86efac"/>
+    <path d="M149 81c12 10 26 10 38 0" fill="none" stroke="#86efac" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="162" cy="214" r="28" fill="#22c55e"/>
+    <path d="M52 178c-48 7-80 33-96 78" fill="none" stroke="#16a34a" stroke-width="18" stroke-linecap="round"/>
+    <path d="M272 178c48 7 80 33 96 78" fill="none" stroke="#16a34a" stroke-width="18" stroke-linecap="round"/>
+    <path d="M99 334c-16 40-47 62-94 66m220-66c16 40 47 62 94 66" fill="none" stroke="#166534" stroke-width="12" stroke-linecap="round" opacity=".45"/>
+  </g>
+  <g transform="translate(90 296)" fill="#16a34a">
+    <path d="M42 70C13 52 0 29 0 0c28 6 49 21 62 45 10 19 8 37-6 55-3-13-8-23-14-30Z" opacity=".75"/>
+    <path d="M98 102c-22-36-23-69-2-100 28 24 43 55 45 92 1 26-10 45-33 57 2-19-2-35-10-49Z" opacity=".9"/>
+  </g>
+</svg>
