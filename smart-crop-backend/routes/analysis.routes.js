@@ -32,7 +32,7 @@ router.post('/run/:farmId', authenticate, async (req, res) => {
 // GET /api/analysis/latest/:farmId - Get latest analysis
 router.get('/latest/:farmId', authenticate, async (req, res) => {
   try {
-    const analysis = await Analysis.findOne({ farmId: req.params.farmId }).sort({ analysisDate: -1 });
+    let analysis = await Analysis.findOne({ farmId: req.params.farmId }).sort({ analysisDate: -1 });
     if (!analysis) {
       return res.json({ success: true, analysis: null });
     }
@@ -54,6 +54,13 @@ router.get('/latest/:farmId', authenticate, async (req, res) => {
     if (hasBrokenFallback || needsSentinelRepair) {
       const farm = await Farm.findOne({ _id: req.params.farmId, farmerId: req.user.id });
       if (farm) {
+        try {
+          analysis = await createStoredFarmAnalysis(farm);
+          return res.json({ success: true, analysis: sanitizeAnalysis(analysis) });
+        } catch (error) {
+          console.warn('Latest analysis full rerun failed, trying imagery repair:', error?.response?.data || error.message);
+        }
+
         let imagery = null;
 
         try {
