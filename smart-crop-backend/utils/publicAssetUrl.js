@@ -1,7 +1,30 @@
 const PLACEHOLDER_HOST = "your-render-service-name.onrender.com";
+const DEFAULT_RENDER_SERVICE_URL = "https://cropsafe-ai.onrender.com";
+
+function sanitizeBaseUrl(value) {
+  const url = String(value || "").trim().replace(/\/+$/, "");
+  if (!url) return "";
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === PLACEHOLDER_HOST) return "";
+    if (process.env.NODE_ENV === "production" && ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname)) {
+      return "";
+    }
+    return url;
+  } catch {
+    return "";
+  }
+}
 
 function getPublicBaseUrl() {
-  return process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
+  return (
+    sanitizeBaseUrl(process.env.PUBLIC_BASE_URL) ||
+    sanitizeBaseUrl(process.env.RENDER_EXTERNAL_URL) ||
+    (process.env.RENDER_SERVICE_NAME ? `https://${process.env.RENDER_SERVICE_NAME}.onrender.com` : "") ||
+    (process.env.NODE_ENV === "production" ? DEFAULT_RENDER_SERVICE_URL : "") ||
+    `http://localhost:${process.env.PORT || 5000}`
+  );
 }
 
 function normalizePublicAssetUrl(value) {

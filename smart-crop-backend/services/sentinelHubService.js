@@ -3,13 +3,10 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { isUsefulPngBuffer } = require('../utils/imageQuality');
+const { getPublicBaseUrl } = require('../utils/publicAssetUrl');
 
 let cachedToken = null;
 let tokenExpiresAt = 0;
-
-function getPublicBaseUrl() {
-  return process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
-}
 
 function ensureUploadDir() {
   const dir = path.join(__dirname, '..', 'public', 'uploads', 'sentinel');
