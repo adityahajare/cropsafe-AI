@@ -4,6 +4,7 @@ const { normalizePublicAssetUrl, normalizeImageSamples } = require('./publicAsse
 
 function isSyntheticImageUrl(value) {
   const url = String(value || '').toLowerCase();
+  if (url.includes('/uploads/analysis/')) return false;
   return (
     url.includes('generated') ||
     url.includes(legacySyntheticHost) ||

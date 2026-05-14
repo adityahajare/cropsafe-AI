@@ -4,6 +4,7 @@ const Analysis = require('../models/SatelliteAnalysis');
 const { authenticate } = require('../middleware/auth');
 const { getSentinelHubImages } = require('../services/sentinelHubService');
 const { createStoredFarmAnalysis } = require('../services/farmAnalysisService');
+const { createAnalysisFallbackImages } = require('../services/analysisFallbackImageService');
 const { sanitizeAnalysis, isSyntheticImageUrl } = require('../utils/analysisSanitizer');
 
 const router = express.Router();
@@ -79,12 +80,20 @@ router.get('/latest/:farmId', authenticate, async (req, res) => {
           analysis.imageryStatus = hasUsefulNdviLayer ? 'sentinel' : 'sentinel-ndvi-unavailable';
           await analysis.save();
         } else {
-          analysis.currentImageUrl = '';
-          analysis.previousImageUrl = '';
-          analysis.ndviLayerUrl = '';
-          analysis.imageSamples = [];
-          analysis.imagerySource = 'Sentinel Hub unavailable';
-          analysis.imageryStatus = 'sentinel-unavailable';
+          const fallback = createAnalysisFallbackImages({
+            farm,
+            analysis,
+            previousNdvi:
+              typeof analysis.ndviDelta === 'number'
+                ? Number((Number(analysis.ndviValue || 0) - analysis.ndviDelta).toFixed(4))
+                : Number(analysis.ndviValue || 0),
+          });
+          analysis.currentImageUrl = fallback.currentImageUrl;
+          analysis.previousImageUrl = fallback.previousImageUrl;
+          analysis.ndviLayerUrl = fallback.ndviLayerUrl;
+          analysis.imageSamples = fallback.imageSamples;
+          analysis.imagerySource = fallback.source;
+          analysis.imageryStatus = fallback.status;
           await analysis.save();
         }
       }

@@ -1,6 +1,7 @@
 const Analysis = require('../models/SatelliteAnalysis');
 const { getSentinelHubAnalysis } = require('./sentinelHubService');
 const getWeather = require('./weatherService');
+const { createAnalysisFallbackImages } = require('./analysisFallbackImageService');
 
 const CROP_VALUE_PER_HECTARE = {
   Rice: 85000,
@@ -150,6 +151,25 @@ async function createStoredFarmAnalysis(farm) {
     farm.areaHectares,
     weather
   );
+  const fallbackImagery = !sentinel.imagery
+    ? createAnalysisFallbackImages({
+        farm,
+        analysis: {
+          ...assessment,
+          ndviValue: currentStats.mean,
+          ndviDelta:
+            typeof previousStats?.mean === 'number'
+              ? Number((currentStats.mean - previousStats.mean).toFixed(4))
+              : 0,
+        },
+        previousNdvi: previousStats?.mean,
+      })
+    : null;
+  const imagery = sentinel.imagery || fallbackImagery;
+  const imageryStatus = sentinel.imagery
+    ? hasUsefulNdviLayer ? 'sentinel' : 'sentinel-ndvi-unavailable'
+    : fallbackImagery?.status || 'analysis-fallback';
+  const imagerySource = sentinel.imagery ? sentinel.source : fallbackImagery?.source || 'CropSafe NDVI visualization';
 
   const analysis = new Analysis({
     farmId: farm._id,
@@ -159,14 +179,14 @@ async function createStoredFarmAnalysis(farm) {
     temperature: weather?.temperature ?? null,
     rainfall: weather?.rainfall ?? null,
     humidity: weather?.humidity ?? null,
-    currentImageUrl: sentinel.imagery?.currentImageUrl || '',
-    previousImageUrl: sentinel.imagery?.previousImageUrl || '',
-    ndviLayerUrl: hasUsefulNdviLayer ? (sentinel.imagery?.ndviLayerUrl || '') : '',
-    imageSamples: sentinel.imagery?.imageSamples || [],
-    imagerySource: sentinel.source,
-    imageryStatus: sentinel.imagery
-      ? hasUsefulNdviLayer ? 'sentinel' : 'sentinel-ndvi-unavailable'
-      : 'sentinel-stats-only',
+    currentImageUrl: imagery?.currentImageUrl || '',
+    previousImageUrl: imagery?.previousImageUrl || '',
+    ndviLayerUrl: sentinel.imagery
+      ? hasUsefulNdviLayer ? (sentinel.imagery?.ndviLayerUrl || '') : ''
+      : imagery?.ndviLayerUrl || '',
+    imageSamples: imagery?.imageSamples || [],
+    imagerySource,
+    imageryStatus,
     analysisDate: new Date(),
   });
 
