@@ -6,8 +6,8 @@ function toFiniteNumber(value) {
 function normalizePolygon(polygonCoordinates = []) {
   return polygonCoordinates
     .map((point) => {
-      const lat = toFiniteNumber(point?.[0]);
-      const lng = toFiniteNumber(point?.[1]);
+      const lat = toFiniteNumber(Array.isArray(point) ? point?.[0] : point?.lat);
+      const lng = toFiniteNumber(Array.isArray(point) ? point?.[1] : point?.lng ?? point?.lon);
       return lat == null || lng == null ? null : [lat, lng];
     })
     .filter(Boolean);

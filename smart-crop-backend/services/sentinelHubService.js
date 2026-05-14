@@ -38,8 +38,26 @@ async function getSentinelToken() {
 }
 
 function polygonToGeoJson(farm) {
+  const boundary = farm?.boundaryGeoJson;
+  if (
+    boundary &&
+    boundary.type === 'Polygon' &&
+    Array.isArray(boundary.coordinates) &&
+    Array.isArray(boundary.coordinates[0]) &&
+    boundary.coordinates[0].length >= 4
+  ) {
+    const valid = boundary.coordinates[0].every(
+      (point) => Array.isArray(point) && point.length >= 2 && Number.isFinite(Number(point[0])) && Number.isFinite(Number(point[1]))
+    );
+    if (valid) return boundary;
+  }
+
   const coords = (farm.polygonCoordinates || [])
-    .map((point) => [Number(point[1]), Number(point[0])])
+    .map((point) => {
+      const lat = Array.isArray(point) ? Number(point[0]) : Number(point?.lat);
+      const lng = Array.isArray(point) ? Number(point[1]) : Number(point?.lng ?? point?.lon);
+      return [lng, lat];
+    })
     .filter(([lng, lat]) => Number.isFinite(lat) && Number.isFinite(lng));
 
   if (coords.length < 3) return null;
@@ -51,6 +69,29 @@ function polygonToGeoJson(farm) {
   return {
     type: 'Polygon',
     coordinates: [coords],
+  };
+}
+
+function createFallbackGeometryFromCenter(farm) {
+  const lat = Number(farm?.centerLat);
+  const lng = Number(farm?.centerLng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  const areaHectares = Math.max(0.05, Number(farm?.areaHectares) || 1);
+  const areaSquareMeters = areaHectares * 10000;
+  const halfSideMeters = Math.max(12, Math.sqrt(areaSquareMeters) / 2);
+  const latDelta = halfSideMeters / 111320;
+  const lngDelta = halfSideMeters / (111320 * Math.max(Math.cos((lat * Math.PI) / 180), 0.2));
+
+  return {
+    type: 'Polygon',
+    coordinates: [[
+      [lng - lngDelta, lat - latDelta],
+      [lng + lngDelta, lat - latDelta],
+      [lng + lngDelta, lat + latDelta],
+      [lng - lngDelta, lat + latDelta],
+      [lng - lngDelta, lat - latDelta],
+    ]],
   };
 }
 
@@ -221,7 +262,7 @@ async function requestNdviStats({ token, geometry, from, to }) {
 
 async function getSentinelHubImages(farm, analysis = {}) {
   const token = await getSentinelToken();
-  const geometry = polygonToGeoJson(farm);
+  const geometry = polygonToGeoJson(farm) || createFallbackGeometryFromCenter(farm);
   if (!token || !geometry) return null;
 
   const currentFrom = dateOnly(daysAgo(30));
@@ -263,9 +304,9 @@ async function getSentinelHubImages(farm, analysis = {}) {
 
 async function getSentinelHubAnalysis(farm) {
   const token = await getSentinelToken();
-  const geometry = polygonToGeoJson(farm);
+  const geometry = polygonToGeoJson(farm) || createFallbackGeometryFromCenter(farm);
   if (!token) throw new Error('Sentinel Hub credentials are missing.');
-  if (!geometry) throw new Error('Farm boundary must contain at least 3 points.');
+  if (!geometry) throw new Error('Farm boundary or center location is required for analysis.');
 
   const currentFrom = dateOnly(daysAgo(30));
   const currentTo = dateOnly(new Date());
