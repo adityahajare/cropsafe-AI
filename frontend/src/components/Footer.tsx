@@ -13,7 +13,7 @@ export function Footer() {
               <div className="w-9 h-9 rounded-xl hero-gradient flex items-center justify-center">
                 <Leaf className="w-5 h-5 text-white" />
               </div>
-              <span className="font-display font-bold text-lg text-white">SmartCrop AI</span>
+              <span className="font-display font-bold text-lg text-white">CropSafe</span>
             </div>
             <p className="text-white/50 text-sm leading-relaxed max-w-xs">
               Empowering Indian farmers with satellite-powered, AI-driven crop insurance. No paperwork. No delays. Just fair, transparent payouts.
@@ -60,7 +60,7 @@ export function Footer() {
               </li>
               <li className="flex items-center gap-2 text-sm text-white/50">
                 <Mail className="w-3.5 h-3.5 shrink-0" />
-                support@smartcropai.in
+                support@cropsafe.in
               </li>
             </ul>
             <div className="mt-5 p-3 rounded-xl bg-white/5 border border-white/10">
@@ -71,7 +71,7 @@ export function Footer() {
         </div>
 
         <div className="border-t border-white/10 pt-6 flex flex-wrap items-center justify-between gap-4">
-          <p className="text-xs text-white/30">© 2026 SmartCrop AI. All rights reserved.</p>
+          <p className="text-xs text-white/30">© 2026 CropSafe. All rights reserved.</p>
           <p className="text-xs text-white/30">Built for Indian Farmers · Powered by Sentinel-2 · NDVI Analysis</p>
         </div>
       </div>
