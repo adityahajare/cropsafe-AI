@@ -51,6 +51,26 @@ function normalizeText(value) {
     .trim();
 }
 
+function buildSearchQueries(q) {
+  const raw = String(q || "").trim();
+  const parts = raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2);
+
+  const candidates = [
+    raw,
+    parts[0],
+    parts.length > 1 ? parts.slice(0, 2).join(", ") : "",
+    parts.length > 1 ? parts[parts.length - 1] : "",
+    parts.length > 2 ? parts.slice(-2).join(", ") : "",
+  ]
+    .map((item) => String(item || "").trim())
+    .filter((item) => item.length >= 2);
+
+  return [...new Set(candidates)];
+}
+
 function hasCoordinates(item) {
   return Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon));
 }
@@ -320,12 +340,34 @@ router.get("/cities", async (req, res) => {
       return res.json({ success: true, cities: cityCache.get(cacheKey), source: "cache" });
     }
 
-    let source = "geoapify";
-    let cities = await searchGeoapifyCities({ state, q });
-    if (cities.length === 0) {
-      source = "nominatim";
-      cities = await searchNominatimCities({ state, q });
+    const queryCandidates = buildSearchQueries(q);
+    const dedupe = new Set();
+    let source = "none";
+    let cities = [];
+
+    for (const candidate of queryCandidates) {
+      let candidateCities = await searchGeoapifyCities({ state, q: candidate });
+      let candidateSource = "geoapify";
+
+      if (candidateCities.length === 0) {
+        candidateCities = await searchNominatimCities({ state, q: candidate });
+        candidateSource = candidateCities.length > 0 ? "nominatim" : candidateSource;
+      }
+
+      for (const city of candidateCities) {
+        const key = `${normalizeText(city.name)}|${normalizeText(city.district || "")}|${normalizeText(city.state || "")}`;
+        if (dedupe.has(key)) continue;
+        dedupe.add(key);
+        cities.push(city);
+      }
+
+      if (cities.length > 0 && source === "none") {
+        source = candidateSource;
+      }
     }
+
+    cities = cities.sort((a, b) => compareLocations(a, b, q)).slice(0, 12);
+
     cityCache.set(cacheKey, cities);
     res.json({ success: true, cities, source: cities.length > 0 ? source : "none" });
   } catch (error) {
