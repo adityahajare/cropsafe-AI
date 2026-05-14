@@ -1,5 +1,6 @@
 const legacySyntheticHost = ['gibs', 'earthdata', 'nasa', 'gov'].join('.');
 const { isUsefulLocalSentinelImage } = require('./imageQuality');
+const { normalizePublicAssetUrl, normalizeImageSamples } = require('./publicAssetUrl');
 
 function isSyntheticImageUrl(value) {
   const url = String(value || '').toLowerCase();
@@ -47,14 +48,19 @@ function sanitizeAnalysis(analysis) {
   if (invalidNdvi) {
     return {
       ...plain,
+      currentImageUrl: normalizePublicAssetUrl(plain.currentImageUrl),
+      previousImageUrl: normalizePublicAssetUrl(plain.previousImageUrl),
       ndviLayerUrl: '',
-      imageSamples: validSamples,
+      imageSamples: normalizeImageSamples(validSamples),
     };
   }
 
   return {
     ...plain,
-    imageSamples: validSamples,
+    currentImageUrl: normalizePublicAssetUrl(plain.currentImageUrl),
+    previousImageUrl: normalizePublicAssetUrl(plain.previousImageUrl),
+    ndviLayerUrl: normalizePublicAssetUrl(plain.ndviLayerUrl),
+    imageSamples: normalizeImageSamples(validSamples),
   };
 }
 

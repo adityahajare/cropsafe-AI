@@ -3,6 +3,7 @@ const User = require("../models/User.model");
 const Report = require("../models/Report");
 const Analysis = require("../models/SatelliteAnalysis");
 const events = require("../services/reportEvents");
+const { normalizePublicAssetUrl } = require("../utils/publicAssetUrl");
 
 // ================= HELPER =================
 function buildSeries(analyses) {
@@ -46,6 +47,27 @@ function buildCaseNumber(farmId) {
   const timeSuffix = Date.now().toString(36).toUpperCase();
 
   return `CROP-${year}-${farmSuffix}-${timeSuffix}`;
+}
+
+function normalizeReportAssets(report) {
+  if (!report) return report;
+
+  const plain = typeof report.toObject === "function" ? report.toObject() : { ...report };
+  const satelliteData = plain.satelliteData
+    ? {
+        ...plain.satelliteData,
+        beforeImage: normalizePublicAssetUrl(plain.satelliteData.beforeImage),
+        afterImage: normalizePublicAssetUrl(plain.satelliteData.afterImage),
+        ndviBeforeImage: normalizePublicAssetUrl(plain.satelliteData.ndviBeforeImage),
+        ndviAfterImage: normalizePublicAssetUrl(plain.satelliteData.ndviAfterImage),
+        changeMapImage: normalizePublicAssetUrl(plain.satelliteData.changeMapImage),
+      }
+    : plain.satelliteData;
+
+  return {
+    ...plain,
+    satelliteData,
+  };
 }
 
 // ================= MAIN =================
@@ -122,11 +144,11 @@ async function generateReport(req, res) {
       
       // Satellite data
       satelliteData: {
-        beforeImage: latestAnalysis.previousImageUrl || null,
-        afterImage: latestAnalysis.currentImageUrl || null,
+        beforeImage: normalizePublicAssetUrl(latestAnalysis.previousImageUrl) || null,
+        afterImage: normalizePublicAssetUrl(latestAnalysis.currentImageUrl) || null,
         ndviBeforeImage: null,
-        ndviAfterImage: latestAnalysis.ndviLayerUrl || null,
-        changeMapImage: latestAnalysis.ndviLayerUrl || null,
+        ndviAfterImage: normalizePublicAssetUrl(latestAnalysis.ndviLayerUrl) || null,
+        changeMapImage: normalizePublicAssetUrl(latestAnalysis.ndviLayerUrl) || null,
         source: latestAnalysis.imagerySource || "Sentinel Hub",
         status: latestAnalysis.imageryStatus || "unknown",
         currentNDVI: parseFloat(currentNDVI.toFixed(4)),
@@ -215,7 +237,7 @@ async function generateReport(req, res) {
 
     return res.json({
       success: true,
-      data: report,
+      data: normalizeReportAssets(report),
     });
 
   } catch (err) {
@@ -250,7 +272,7 @@ async function listReports(req, res) {
     return res.json({
       success: true,
       count: reports.length,
-      data: reports
+      data: reports.map(normalizeReportAssets)
     });
   } catch (err) {
     console.error("LIST REPORTS ERROR:", err);
@@ -281,7 +303,7 @@ async function listMyReports(req, res) {
     return res.json({
       success: true,
       count: reports.length,
-      data: reports
+      data: reports.map(normalizeReportAssets)
     });
   } catch (err) {
     console.error("LIST MY REPORTS ERROR:", err);
@@ -309,7 +331,7 @@ async function getReport(req, res) {
 
     return res.json({
       success: true,
-      data: report
+      data: normalizeReportAssets(report)
     });
   } catch (err) {
     console.error("GET REPORT ERROR:", err);
@@ -354,7 +376,7 @@ async function submitReportToAdmin(req, res) {
 
     return res.json({
       success: true,
-      data: report
+      data: normalizeReportAssets(report)
     });
   } catch (err) {
     console.error("SUBMIT REPORT ERROR:", err);
@@ -409,7 +431,7 @@ async function decideReport(req, res) {
 
     return res.json({
       success: true,
-      data: report
+      data: normalizeReportAssets(report)
     });
   } catch (err) {
     console.error("DECIDE REPORT ERROR:", err);
