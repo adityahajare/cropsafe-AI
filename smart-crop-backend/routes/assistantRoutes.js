@@ -6,6 +6,10 @@ const { authenticate } = require("../middleware/auth");
 const { runAssistantChat } = require("../services/openaiAssistantService");
 const { buildLocalAssistantReply } = require("../services/localAssistantService");
 
+function shouldUseOpenAI() {
+  return process.env.ENABLE_OPENAI_ASSISTANT === "true" && Boolean(process.env.OPENAI_API_KEY);
+}
+
 router.post("/chat", authenticate, async (req, res) => {
   try {
     const { messages, language, farmContext } = req.body || {};
@@ -14,6 +18,21 @@ router.post("/chat", authenticate, async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Chat messages are required",
+      });
+    }
+
+    if (!shouldUseOpenAI()) {
+      const reply = buildLocalAssistantReply({
+        messages,
+        language,
+        farmContext,
+      });
+
+      return res.json({
+        success: true,
+        reply,
+        source: "Local agriculture assistant",
+        openAIEnabled: false,
       });
     }
 
@@ -26,6 +45,8 @@ router.post("/chat", authenticate, async (req, res) => {
     res.json({
       success: true,
       reply,
+      source: "OpenAI assistant",
+      openAIEnabled: true,
     });
   } catch (error) {
     console.error("Assistant chat error:", error.message);
@@ -43,6 +64,8 @@ router.post("/chat", authenticate, async (req, res) => {
         success: true,
         reply: fallbackReply,
         fallback: true,
+        source: "Local agriculture assistant",
+        openAIEnabled: false,
       });
     }
 

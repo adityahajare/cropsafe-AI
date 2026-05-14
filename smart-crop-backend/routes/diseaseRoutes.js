@@ -19,6 +19,10 @@ const imageUpload = multer({
 });
 const { authenticate } = require('../middleware/auth');  // ✅ ADD THIS
 
+function isOpenAIDiseaseVisionEnabled() {
+  return process.env.ENABLE_OPENAI_DISEASE_VISION === "true" && Boolean(process.env.OPENAI_API_KEY);
+}
+
 // Disease database
 const diseaseDatabase = {
   'Rice': {
@@ -143,7 +147,7 @@ function toArray(value) {
 }
 
 async function diagnoseWithOpenAI(req, file) {
-  if (!process.env.OPENAI_API_KEY) return null;
+  if (!isOpenAIDiseaseVisionEnabled()) return null;
 
   const result = await runDiseaseVisionDiagnosis({
     imageBuffer: file.buffer,
@@ -179,7 +183,7 @@ async function diagnoseWithOpenAI(req, file) {
 router.post('/predict', authenticate, async (req, res) => {  // ADDED authenticate
   res.status(410).json({
     success: false,
-    message: 'Rule-based disease prediction is disabled. Use POST /api/diseases/image-diagnose for real image API diagnosis.',
+    message: 'Use POST /api/diseases/image-diagnose. The active disease flow uses local Python image analysis first, with external APIs only as optional support.',
   });
 });
 
@@ -194,12 +198,6 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
     let pythonVision = null;
 
     try {
-      aiVision = await diagnoseWithOpenAI(req, req.file);
-    } catch (error) {
-      console.warn('OpenAI disease vision unavailable:', error?.response?.data || error.message);
-    }
-
-    try {
       pythonVision = await runPythonDiseaseDiagnosis({
         file: req.file,
         cropType: req.body?.cropType,
@@ -210,49 +208,41 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
     }
 
     try {
+      aiVision = await diagnoseWithOpenAI(req, req.file);
+    } catch (error) {
+      console.warn('Optional OpenAI disease vision unavailable:', error?.response?.data || error.message);
+    }
+
+    try {
       external = await diagnoseWithPlantNet(req.file);
     } catch (error) {
       console.warn('PlantNet disease API unavailable:', error?.response?.data || error.message);
-    }
-
-    if (aiVision?.confidence >= 0.35) {
-      return res.json({
-        success: true,
-        source: aiVision.provider,
-        externalConfigured: Boolean(process.env.OPENAI_API_KEY || process.env.PLANTNET_API_KEY),
-        likelyIssue: aiVision.diagnosis,
-        severity: aiVision.severity,
-        confidence: aiVision.confidence,
-        problem: aiVision.problem,
-        solution: aiVision.solution,
-        note: aiVision.note,
-        visibleSymptoms: aiVision.visibleSymptoms,
-        likelyCauses: aiVision.likelyCauses,
-        shouldEscalate: aiVision.shouldEscalate,
-        fallbackPredictions: external?.predictions || [],
-        apiMeta: {
-          primary: "OpenAI Vision",
-          fallback: external?.provider || null,
-          remainingIdentificationRequests: external?.remainingIdentificationRequests ?? null,
-        },
-      });
     }
 
     if (pythonVision?.confidence >= 0.42) {
       return res.json({
         success: true,
         source: "Local Python Vision",
-        externalConfigured: Boolean(process.env.OPENAI_API_KEY || process.env.PLANTNET_API_KEY),
+        externalConfigured: Boolean(process.env.PLANTNET_API_KEY),
+        openAIEnabled: isOpenAIDiseaseVisionEnabled(),
         likelyIssue: pythonVision.diagnosis,
         severity: normalizeSeverity(pythonVision.severity),
         confidence: Number(pythonVision.confidence || 0),
         problem: pythonVision.problem,
         solution: pythonVision.solution,
-        note: pythonVision.note || "Local Python image analysis result.",
+        note: pythonVision.note || "Local Python image analysis result based on visible crop symptoms and agriculture knowledge rules.",
         visibleSymptoms: toArray(pythonVision.visibleSymptoms),
         likelyCauses: toArray(pythonVision.likelyCauses),
         shouldEscalate: Boolean(pythonVision.shouldEscalate),
         fallbackPredictions: external?.predictions || [],
+        optionalAiReview: aiVision
+          ? {
+              provider: aiVision.provider,
+              likelyIssue: aiVision.diagnosis,
+              confidence: aiVision.confidence,
+              severity: aiVision.severity,
+            }
+          : null,
         apiMeta: {
           primary: "Local Python Vision",
           fallback: external?.provider || null,
@@ -262,11 +252,36 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
       });
     }
 
+    if (aiVision?.confidence >= 0.35) {
+      return res.json({
+        success: true,
+        source: `${aiVision.provider} - optional review`,
+        externalConfigured: Boolean(process.env.PLANTNET_API_KEY),
+        openAIEnabled: true,
+        likelyIssue: aiVision.diagnosis,
+        severity: aiVision.severity,
+        confidence: aiVision.confidence,
+        problem: aiVision.problem,
+        solution: aiVision.solution,
+        note: aiVision.note || "Optional OpenAI review. Core disease detection can still run with local Python analysis.",
+        visibleSymptoms: aiVision.visibleSymptoms,
+        likelyCauses: aiVision.likelyCauses,
+        shouldEscalate: aiVision.shouldEscalate,
+        fallbackPredictions: external?.predictions || [],
+        apiMeta: {
+          primary: "Optional OpenAI Vision",
+          fallback: external?.provider || null,
+          remainingIdentificationRequests: external?.remainingIdentificationRequests ?? null,
+        },
+      });
+    }
+
     if (aiVision && aiVision.confidence >= 0.18 && isMeaningfulDiagnosis(aiVision.diagnosis)) {
       return res.json({
         success: true,
         source: `${aiVision.provider} - cautious result`,
-        externalConfigured: Boolean(process.env.OPENAI_API_KEY || process.env.PLANTNET_API_KEY),
+        externalConfigured: Boolean(process.env.PLANTNET_API_KEY),
+        openAIEnabled: true,
         likelyIssue: `Possible ${aiVision.diagnosis}`,
         severity: aiVision.severity === 'Critical' ? 'High' : aiVision.severity,
         confidence: aiVision.confidence,
@@ -290,7 +305,8 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
       return res.json({
         success: true,
         source: "Local Python Vision - cautious result",
-        externalConfigured: Boolean(process.env.OPENAI_API_KEY || process.env.PLANTNET_API_KEY),
+        externalConfigured: Boolean(process.env.PLANTNET_API_KEY),
+        openAIEnabled: isOpenAIDiseaseVisionEnabled(),
         likelyIssue: `Possible ${pythonVision.diagnosis}`,
         severity: normalizeSeverity(pythonVision.severity),
         confidence: Number(pythonVision.confidence || 0),
@@ -319,7 +335,8 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
         return res.json({
           success: true,
           source: `${external.provider} - low confidence`,
-          externalConfigured: Boolean(process.env.OPENAI_API_KEY || process.env.PLANTNET_API_KEY),
+          externalConfigured: Boolean(process.env.PLANTNET_API_KEY),
+          openAIEnabled: isOpenAIDiseaseVisionEnabled(),
           likelyIssue: `Possible ${bestRaw.name}`,
           severity: bestRawScore >= 0.2 ? bestRaw.severity : 'Low',
           confidence: bestRawScore,
@@ -347,11 +364,10 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
 
       return res.status(external?.providerConfigured ? 422 : 503).json({
         success: false,
-        message: process.env.OPENAI_API_KEY || process.env.PLANTNET_API_KEY
-          ? `Disease image scan found no confident match. Best image confidence was ${Math.round(Math.max(bestRawScore, Number(aiVision?.confidence || 0)) * 100)}%. Try a closer daylight photo of the affected leaf.`
-          : 'Disease image API key is not configured.',
+        message: `Local disease scan found no confident match. Best image confidence was ${Math.round(Math.max(bestRawScore, Number(aiVision?.confidence || 0), Number(pythonVision?.confidence || 0)) * 100)}%. Try a closer daylight photo of the affected leaf.`,
         bestConfidence: bestRawScore,
-        source: aiVision?.provider || external?.provider || null,
+        source: pythonVision ? "Local Python Vision" : aiVision?.provider || external?.provider || null,
+        openAIEnabled: isOpenAIDiseaseVisionEnabled(),
         aiVision: aiVision
           ? {
               likelyIssue: aiVision.diagnosis,
@@ -380,7 +396,8 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
     res.json({
       success: true,
       source: external.provider,
-      externalConfigured: Boolean(process.env.OPENAI_API_KEY || process.env.PLANTNET_API_KEY),
+      externalConfigured: Boolean(process.env.PLANTNET_API_KEY),
+      openAIEnabled: isOpenAIDiseaseVisionEnabled(),
       problem: best.problem,
       solution: best.solution,
       likelyIssue: best.name,
