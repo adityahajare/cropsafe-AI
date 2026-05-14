@@ -1,7 +1,7 @@
 const express = require('express');
 const SatelliteAnalysis = require('../models/SatelliteAnalysis');
 const Farm = require('../models/Farm.model');
-const Weather = require('../models/Weather');
+const Weather = require('../models/weather');
 
 // ✅ FIXED - correct middleware import
 const { authenticate } = require('../middleware/auth'); // ✅ CHANGED from authMiddleware to auth
