@@ -2,6 +2,7 @@ const apiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_UR
 
 export const BACKEND_ASSET_BASE = apiBase.replace(/\/api\/?$/, "");
 const LOCAL_BACKEND_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+const PLACEHOLDER_BACKEND_HOSTS = new Set(["your-render-service-name.onrender.com"]);
 
 export function backendAsset(path: string) {
   return `${BACKEND_ASSET_BASE}${path.startsWith("/") ? path : `/${path}`}`;
@@ -17,6 +18,9 @@ export function normalizeBackendAssetUrl(value?: string | null) {
 
   try {
     const parsed = new URL(url);
+    if (PLACEHOLDER_BACKEND_HOSTS.has(parsed.hostname) && parsed.pathname.startsWith("/uploads/")) {
+      return `${BACKEND_ASSET_BASE}${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
     if (LOCAL_BACKEND_HOSTS.has(parsed.hostname) && parsed.pathname.startsWith("/uploads/")) {
       return `${BACKEND_ASSET_BASE}${parsed.pathname}${parsed.search}${parsed.hash}`;
     }
