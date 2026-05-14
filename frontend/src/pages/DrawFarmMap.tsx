@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LayersControl, MapContainer, Marker, Polygon, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import L from "leaflet";
 import { Check, Edit, LocateFixed, MapPin, Plus, Search, Trash2, Undo2, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { CROP_TYPES, SEASON_TYPES } from "@/utils/constants";
@@ -13,6 +14,13 @@ const defaultZoom = 19;
 const closeFarmZoom = 20;
 const maxFarmZoom = 23;
 const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
+
+const boundaryPointIcon = L.divIcon({
+  className: "cropsafe-boundary-point",
+  html: '<span class="cropsafe-boundary-point__dot"></span>',
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+});
 
 type FarmLocationMeta = {
   village: string;
@@ -368,6 +376,7 @@ export default function DrawFarmMap() {
     setBoundary([]);
     setDrawing(false);
     setForm((prev) => ({ ...prev, areaHectares: "0.00" }));
+    setMessage("Boundary cleared. Start drawing again to mark your farm.");
   };
 
   const undoLastPoint = () => {
@@ -629,6 +638,7 @@ export default function DrawFarmMap() {
                 <Marker
                   key={`${point[0]}-${point[1]}-${index}`}
                   position={point}
+                  icon={boundaryPointIcon}
                   draggable
                   eventHandlers={{
                     dragend(event) {
@@ -649,11 +659,11 @@ export default function DrawFarmMap() {
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm font-semibold text-slate-700"><MapPin className="mr-1 inline h-4 w-4 text-emerald-700" /> Area: {area.toFixed(2)} hectares - Points: {boundary.length}</p>
               <div className="flex flex-wrap gap-2">
-                <button onClick={() => setDrawing(true)} className="inline-flex items-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white"><MapPin className="h-4 w-4" /> Start Drawing</button>
+                <button onClick={() => { setDrawing(true); setMessage("Drawing started. Tap on the map to add each farm corner."); }} className="inline-flex items-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white"><MapPin className="h-4 w-4" /> Start Drawing</button>
                 <button onClick={undoLastPoint} disabled={boundary.length === 0} className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold disabled:opacity-50"><Undo2 className="h-4 w-4" /> Undo Point</button>
                 <button onClick={fitBoundary} disabled={boundary.length < 2} className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold disabled:opacity-50"><LocateFixed className="h-4 w-4" /> Fit Boundary</button>
                 <button onClick={clearBoundary} className="inline-flex items-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-600"><Trash2 className="h-4 w-4" /> Clear</button>
-                <button onClick={() => setDrawing(false)} className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold"><Check className="h-4 w-4" /> Save Boundary</button>
+                <button onClick={() => { setDrawing(false); setMessage(boundary.length >= 3 ? "Boundary saved. You can now save the farm." : "Boundary paused. Add at least 3 points for a farm area."); }} className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold"><Check className="h-4 w-4" /> Save Boundary</button>
               </div>
             </div>
           </div>
