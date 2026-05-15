@@ -105,7 +105,11 @@ function SatelliteImageCard({
   const [failed, setFailed] = useState(false);
   const normalizedImageUrl = useMemo(() => normalizeBackendAssetUrl(imageUrl), [imageUrl]);
   const displayUrl = useMemo(
-    () => normalizedImageUrl ? `${normalizedImageUrl}${normalizedImageUrl.includes("?") ? "&" : "?"}v=${Date.now()}` : "",
+    () => {
+      if (!normalizedImageUrl) return "";
+      if (normalizedImageUrl.startsWith("data:")) return normalizedImageUrl;
+      return `${normalizedImageUrl}${normalizedImageUrl.includes("?") ? "&" : "?"}v=${Date.now()}`;
+    },
     [normalizedImageUrl]
   );
 

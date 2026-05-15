@@ -22,11 +22,15 @@ type Severity = "Low" | "Medium" | "High" | "Critical";
 
 type DiseaseResult = {
   disease: string;
+  candidateIssue?: string | null;
   cropHint: string;
   severity: Severity;
   problem: string;
   solution: string;
   confidence?: number;
+  confidenceBand?: "uncertain" | "possible" | "likely";
+  showDiseaseName?: boolean;
+  aiConfidenceVisible?: boolean;
   source?: string;
   note?: string;
   visibleSymptoms?: string[];
@@ -230,11 +234,15 @@ export default function DiseaseDetector() {
       if (data?.success) {
         setResult({
           disease: data.likelyIssue || "Possible crop issue",
+          candidateIssue: data.candidateIssue || null,
           cropHint: selectedFarm?.cropType ? `${selectedFarm.cropType} - ${selectedFarm.city || "selected farm"}` : "Uploaded crop image",
           severity: data.severity || "Medium",
           problem: data.problem || "A crop issue may be present in the uploaded image.",
           solution: data.solution || "Inspect the farm and confirm with a local agriculture officer.",
           confidence: typeof data.confidence === "number" ? data.confidence : undefined,
+          confidenceBand: data.confidenceBand,
+          showDiseaseName: Boolean(data.showDiseaseName),
+          aiConfidenceVisible: Boolean(data.aiConfidenceVisible),
           source: data.source || "CropSafe image scan",
           note: data.note || "Confirm severe cases locally before treatment.",
           visibleSymptoms: Array.isArray(data.visibleSymptoms) ? data.visibleSymptoms : [],
@@ -251,6 +259,9 @@ export default function DiseaseDetector() {
         severity: "Medium",
         problem: cleanScanMessage(error?.response?.data?.message || error?.message),
         solution: "Try a clearer crop photo, or confirm with a local agriculture officer. CropSafe will not show a guessed disease result.",
+        confidenceBand: "uncertain",
+        showDiseaseName: false,
+        aiConfidenceVisible: false,
         source: "Scan unavailable",
         note: "No local guessed diagnosis was used.",
         visibleSymptoms: [],
@@ -393,10 +404,15 @@ export default function DiseaseDetector() {
                   <p className="text-sm font-semibold text-emerald-700">Likely Problem</p>
                   <h2 className="text-2xl font-bold text-slate-950">{result.disease}</h2>
                   <p className="mt-1 text-sm text-slate-500">{result.cropHint}</p>
+                  {!result.showDiseaseName && result.candidateIssue && (
+                    <p className="mt-2 text-xs font-semibold text-amber-700">
+                      No strong disease match shown yet. Candidate pattern stayed below CropSafe reliability threshold.
+                    </p>
+                  )}
                   {(result.source || result.confidence != null) && (
                     <p className="mt-2 text-xs font-semibold text-slate-500">
                       {result.source || "CropSafe image scan"}
-                      {result.confidence != null ? ` - ${Math.round(result.confidence * 100)}% confidence` : ""}
+                      {result.aiConfidenceVisible && result.confidence != null ? ` - ${Math.round(result.confidence * 100)}% AI confidence` : ""}
                     </p>
                   )}
                 </div>

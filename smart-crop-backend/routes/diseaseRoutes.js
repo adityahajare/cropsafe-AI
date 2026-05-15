@@ -6,6 +6,9 @@ const FormData = require('form-data');
 const { runDiseaseVisionDiagnosis } = require('../services/openaiAssistantService');
 const { runPythonDiseaseDiagnosis } = require('../services/pythonDiseaseService');
 
+const UNCERTAIN_CONFIDENCE = 0.4;
+const LIKELY_CONFIDENCE = 0.7;
+
 const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -82,6 +85,37 @@ const diseaseDatabase = {
   }
 };
 
+const cropDiseaseHints = {
+  rice: ['rice', 'paddy', 'blast', 'blight', 'brown spot', 'sheath', 'hopper'],
+  ragi: ['ragi', 'finger millet', 'blast', 'leaf spot', 'smut', 'rust'],
+  wheat: ['wheat', 'rust', 'smut', 'blight', 'mildew'],
+  maize: ['maize', 'corn', 'leaf blight', 'downy mildew', 'rust', 'stem borer'],
+  soybean: ['soybean', 'soyabean', 'rust', 'blight', 'mildew', 'defoliation'],
+  cotton: ['cotton', 'boll', 'wilt', 'leaf curl', 'aphid', 'whitefly'],
+  sugarcane: ['sugarcane', 'cane', 'red rot', 'smut', 'borer', 'rust'],
+  tomato: ['tomato', 'leaf curl', 'blight', 'wilt', 'mosaic'],
+  chilli: ['chilli', 'pepper', 'leaf curl', 'thrips', 'blight', 'wilt'],
+  grape: ['grape', 'powdery mildew', 'downy mildew', 'anthracnose'],
+};
+
+const genericDiseaseKeywords = [
+  'leaf spot',
+  'blight',
+  'mildew',
+  'rust',
+  'deficiency',
+  'stress',
+  'pest',
+  'damage',
+  'wilt',
+  'rot',
+  'curl',
+  'mosaic',
+  'borer',
+  'hopper',
+  'smut',
+];
+
 function mapPlantNetResult(result) {
   const description = result?.description || result?.label || result?.name || 'Possible crop issue';
   const score = Number(result?.score || 0);
@@ -93,6 +127,125 @@ function mapPlantNetResult(result) {
     solution: 'Compare symptoms in the field, isolate affected plants if spreading, and confirm treatment with a local agriculture officer before spraying.',
     relatedImage: result?.images?.[0]?.url?.m || result?.images?.[0]?.url?.s || null,
     providerCode: result?.name || null
+  };
+}
+
+function normalizeText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getCropHints(cropType) {
+  const crop = normalizeText(cropType);
+  if (!crop) return [];
+
+  const direct = cropDiseaseHints[crop];
+  if (direct) return direct;
+
+  const entry = Object.entries(cropDiseaseHints).find(([key]) => crop.includes(key) || key.includes(crop));
+  return entry ? entry[1] : [];
+}
+
+function evaluateCropCompatibility(cropType, diseaseName) {
+  const hints = getCropHints(cropType);
+  const disease = normalizeText(diseaseName);
+
+  if (!disease || !hints.length) {
+    return {
+      cropValidated: false,
+      cropCompatible: true,
+      score: 1,
+      note: '',
+    };
+  }
+
+  if (hints.some((hint) => disease.includes(hint))) {
+    return {
+      cropValidated: true,
+      cropCompatible: true,
+      score: 1,
+      note: '',
+    };
+  }
+
+  if (genericDiseaseKeywords.some((hint) => disease.includes(hint))) {
+    return {
+      cropValidated: true,
+      cropCompatible: true,
+      score: 0.85,
+      note: '',
+    };
+  }
+
+  return {
+    cropValidated: true,
+    cropCompatible: false,
+    score: 0.45,
+    note: `This match is not commonly associated with ${cropType}. CropSafe has lowered confidence until a clearer crop-specific image is uploaded.`,
+  };
+}
+
+function getConfidenceBand(confidence, cropCompatible = true) {
+  if (!cropCompatible && confidence < 0.75) return 'uncertain';
+  if (confidence < UNCERTAIN_CONFIDENCE) return 'uncertain';
+  if (confidence < LIKELY_CONFIDENCE) return 'possible';
+  return 'likely';
+}
+
+function buildGuidance(confidenceBand, candidateName, cropType) {
+  if (confidenceBand === 'likely') {
+    return {
+      title: candidateName,
+      problem: `${candidateName} is the strongest current disease match from the uploaded crop image.`,
+      solution: 'Inspect nearby plants, compare symptoms across the field, and begin the recommended treatment plan after local confirmation for severe cases.',
+      note: 'High-confidence result based on image evidence and crop context.',
+    };
+  }
+
+  if (confidenceBand === 'possible') {
+    return {
+      title: 'Possible disease pattern',
+      problem: `The image shows a possible disease pattern${candidateName ? ` linked to ${candidateName}` : ''}, but the evidence is still moderate.`,
+      solution: 'Take one closer daylight photo of the affected leaf, inspect more plants in the same patch, and confirm with a local agriculture officer before treatment.',
+      note: 'Moderate-confidence scan. Use this as a field clue, not as final diagnosis.',
+    };
+  }
+
+  return {
+    title: 'Uncertain detection',
+    problem: `No strong disease match was found for this ${cropType || 'crop'} image. The scan needs a clearer daylight photo with the affected leaf filling most of the frame.`,
+    solution: 'Upload one sharper close photo of the affected leaf, avoid shadows, and include only the damaged plant part if possible. Use field symptoms and local advice before any spray decision.',
+    note: 'Low-confidence scan. CropSafe is hiding the disease name until the image evidence becomes reliable.',
+  };
+}
+
+function finalizeDiagnosis(payload, cropType) {
+  const rawName = String(payload.rawDiseaseName || payload.likelyIssue || '').replace(/^Possible\s+/i, '').trim();
+  const rawConfidence = Number(payload.confidence || 0);
+  const cropCheck = evaluateCropCompatibility(cropType, rawName);
+  const adjustedConfidence = Math.max(0, Math.min(1, rawConfidence * cropCheck.score));
+  const confidenceBand = getConfidenceBand(adjustedConfidence, cropCheck.cropCompatible);
+  const guidance = buildGuidance(confidenceBand, rawName, cropType);
+
+  const mergedNote = [guidance.note, payload.note, cropCheck.note].filter(Boolean).join(' ');
+
+  return {
+    ...payload,
+    likelyIssue: guidance.title,
+    candidateIssue: rawName || null,
+    confidence: adjustedConfidence,
+    confidenceBand,
+    showDiseaseName: confidenceBand !== 'uncertain',
+    aiConfidenceVisible: confidenceBand !== 'uncertain',
+    cropValidated: cropCheck.cropValidated,
+    cropCompatible: cropCheck.cropCompatible,
+    problem: payload.problem || guidance.problem,
+    solution: payload.solution || guidance.solution,
+    note: mergedNote,
+    rawDiseaseName: rawName || null,
+    shouldEscalate: payload.shouldEscalate ?? confidenceBand !== 'likely',
+    severity: confidenceBand === 'uncertain'
+      ? 'Low'
+      : payload.severity || (confidenceBand === 'likely' ? 'High' : 'Medium'),
   };
 }
 
@@ -220,12 +373,13 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
     }
 
     if (pythonVision?.confidence >= 0.42) {
-      return res.json({
+      return res.json(finalizeDiagnosis({
         success: true,
         source: "Local Python Vision",
         externalConfigured: Boolean(process.env.PLANTNET_API_KEY),
         openAIEnabled: isOpenAIDiseaseVisionEnabled(),
         likelyIssue: pythonVision.diagnosis,
+        rawDiseaseName: pythonVision.diagnosis,
         severity: normalizeSeverity(pythonVision.severity),
         confidence: Number(pythonVision.confidence || 0),
         problem: pythonVision.problem,
@@ -249,16 +403,17 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
           metrics: pythonVision.metrics || null,
           remainingIdentificationRequests: external?.remainingIdentificationRequests ?? null,
         },
-      });
+      }, req.body?.cropType));
     }
 
     if (aiVision?.confidence >= 0.35) {
-      return res.json({
+      return res.json(finalizeDiagnosis({
         success: true,
         source: `${aiVision.provider} - optional review`,
         externalConfigured: Boolean(process.env.PLANTNET_API_KEY),
         openAIEnabled: true,
         likelyIssue: aiVision.diagnosis,
+        rawDiseaseName: aiVision.diagnosis,
         severity: aiVision.severity,
         confidence: aiVision.confidence,
         problem: aiVision.problem,
@@ -273,20 +428,21 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
           fallback: external?.provider || null,
           remainingIdentificationRequests: external?.remainingIdentificationRequests ?? null,
         },
-      });
+      }, req.body?.cropType));
     }
 
     if (aiVision && aiVision.confidence >= 0.18 && isMeaningfulDiagnosis(aiVision.diagnosis)) {
-      return res.json({
+      return res.json(finalizeDiagnosis({
         success: true,
         source: `${aiVision.provider} - cautious result`,
         externalConfigured: Boolean(process.env.PLANTNET_API_KEY),
         openAIEnabled: true,
         likelyIssue: `Possible ${aiVision.diagnosis}`,
+        rawDiseaseName: aiVision.diagnosis,
         severity: aiVision.severity === 'Critical' ? 'High' : aiVision.severity,
         confidence: aiVision.confidence,
-        problem: aiVision.problem || 'The crop image shows a possible disease or stress pattern, but confidence is limited.',
-        solution: aiVision.solution || 'Inspect more leaves in daylight and confirm with a local agriculture officer before spraying.',
+        problem: '',
+        solution: '',
         note: aiVision.note || 'Low-confidence AI result. Use this as a field clue, not as final diagnosis.',
         visibleSymptoms: aiVision.visibleSymptoms,
         likelyCauses: aiVision.likelyCauses,
@@ -298,20 +454,21 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
           confidenceMode: "cautious",
           remainingIdentificationRequests: external?.remainingIdentificationRequests ?? null,
         },
-      });
+      }, req.body?.cropType));
     }
 
     if (pythonVision && Number(pythonVision.confidence || 0) >= 0.22 && isMeaningfulDiagnosis(pythonVision.diagnosis)) {
-      return res.json({
+      return res.json(finalizeDiagnosis({
         success: true,
         source: "Local Python Vision - cautious result",
         externalConfigured: Boolean(process.env.PLANTNET_API_KEY),
         openAIEnabled: isOpenAIDiseaseVisionEnabled(),
         likelyIssue: `Possible ${pythonVision.diagnosis}`,
+        rawDiseaseName: pythonVision.diagnosis,
         severity: normalizeSeverity(pythonVision.severity),
         confidence: Number(pythonVision.confidence || 0),
-        problem: pythonVision.problem || "The local image analyzer found a possible crop issue, but confidence is limited.",
-        solution: pythonVision.solution || "Inspect more leaves in daylight and confirm with a local agriculture officer before spraying.",
+        problem: '',
+        solution: '',
         note: pythonVision.note || "Low-confidence local Python result. Use this as a field clue, not as final diagnosis.",
         visibleSymptoms: toArray(pythonVision.visibleSymptoms),
         likelyCauses: toArray(pythonVision.likelyCauses),
@@ -324,7 +481,7 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
           metrics: pythonVision.metrics || null,
           remainingIdentificationRequests: external?.remainingIdentificationRequests ?? null,
         },
-      });
+      }, req.body?.cropType));
     }
 
     if (!external?.predictions?.length && external?.rawPredictions?.length) {
@@ -332,17 +489,18 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
       const bestRawScore = Number(bestRaw?.confidence || 0);
 
       if (bestRaw && bestRawScore >= 0.08) {
-        return res.json({
+        return res.json(finalizeDiagnosis({
           success: true,
           source: `${external.provider} - low confidence`,
           externalConfigured: Boolean(process.env.PLANTNET_API_KEY),
           openAIEnabled: isOpenAIDiseaseVisionEnabled(),
           likelyIssue: `Possible ${bestRaw.name}`,
+          rawDiseaseName: bestRaw.name,
           severity: bestRawScore >= 0.2 ? bestRaw.severity : 'Low',
           confidence: bestRawScore,
-          problem: `Image scan found a possible match: ${bestRaw.name}. Confidence is only ${Math.round(bestRawScore * 100)}%, so this should be treated as an early clue, not a confirmed diagnosis.`,
-          solution: 'Take one closer daylight photo of the affected leaf, compare symptoms in the field, and confirm with a local agriculture officer before treatment.',
-          note: 'Low-confidence image match shown because the scan found a possible disease pattern.',
+          problem: '',
+          solution: '',
+          note: 'PlantNet returned a weak candidate. CropSafe is treating it only as a supporting clue.',
           visibleSymptoms: [],
           likelyCauses: [],
           shouldEscalate: true,
@@ -352,7 +510,7 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
             confidenceMode: 'low-confidence-match',
             remainingIdentificationRequests: external.remainingIdentificationRequests ?? null,
           },
-        });
+        }, req.body?.cropType));
       }
     }
 
@@ -393,14 +551,15 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
     const predictions = external.predictions;
     const best = predictions[0];
 
-    res.json({
+    res.json(finalizeDiagnosis({
       success: true,
       source: external.provider,
       externalConfigured: Boolean(process.env.PLANTNET_API_KEY),
       openAIEnabled: isOpenAIDiseaseVisionEnabled(),
-      problem: best.problem,
-      solution: best.solution,
+      problem: '',
+      solution: '',
       likelyIssue: best.name,
+      rawDiseaseName: best.name,
       severity: best.severity,
       confidence: best.confidence,
       predictions,
@@ -422,7 +581,7 @@ router.post('/image-diagnose', authenticate, imageUpload.single('image'), async 
           }
         : null,
       note: 'External API result. Confirm severe cases locally before treatment.'
-    });
+    }, req.body?.cropType));
   } catch (error) {
     console.error('Image disease diagnosis error:', error);
     res.status(500).json({ success: false, message: 'Image diagnosis failed' });

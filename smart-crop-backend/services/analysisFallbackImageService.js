@@ -1,14 +1,3 @@
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
-const { getPublicBaseUrl } = require("../utils/publicAssetUrl");
-
-function ensureDir() {
-  const dir = path.join(__dirname, "..", "public", "uploads", "analysis");
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  return dir;
-}
-
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -27,12 +16,8 @@ function labelForNdvi(ndvi) {
   return "Critical";
 }
 
-function writeSvg(kind, svg) {
-  const dir = ensureDir();
-  const filename = `${Date.now()}-${kind}-${crypto.randomUUID()}.svg`;
-  const filepath = path.join(dir, filename);
-  fs.writeFileSync(filepath, svg, "utf8");
-  return `${getPublicBaseUrl()}/uploads/analysis/${filename}`;
+function svgToDataUrl(svg) {
+  return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
 }
 
 function buildCardSvg({ title, subtitle, ndvi, secondaryValue, accent, footer }) {
@@ -110,8 +95,7 @@ function createAnalysisFallbackImages({ farm, analysis, previousNdvi }) {
       ? currentNdvi - analysis.ndviDelta
       : currentNdvi;
 
-  const currentImageUrl = writeSvg(
-    "analysis-current",
+  const currentImageUrl = svgToDataUrl(
     buildCardSvg({
       title: "Current Crop Health",
       subtitle: `${farm?.farmName || farm?.cropType || "Farm"} - NDVI-based fallback image`,
@@ -121,8 +105,7 @@ function createAnalysisFallbackImages({ farm, analysis, previousNdvi }) {
     })
   );
 
-  const previousImageUrl = writeSvg(
-    "analysis-previous",
+  const previousImageUrl = svgToDataUrl(
     buildCardSvg({
       title: "Previous Comparison View",
       subtitle: `${farm?.farmName || farm?.cropType || "Farm"} - baseline NDVI comparison`,
@@ -132,8 +115,7 @@ function createAnalysisFallbackImages({ farm, analysis, previousNdvi }) {
     })
   );
 
-  const ndviLayerUrl = writeSvg(
-    "analysis-ndvi",
+  const ndviLayerUrl = svgToDataUrl(
     buildNdviMapSvg({
       farmName: farm?.farmName || farm?.cropType,
       currentNdvi,
